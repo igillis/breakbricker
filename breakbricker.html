@@ -1,0 +1,125 @@
+<head>
+	<style type="text/css">
+		#myCanvas {
+			border: 2px solid #000;
+			margin-left: 100px;
+			cursor: none;
+		}
+	</style>
+	<script>
+	</script>
+</head>
+<div>
+	<canvas id="myCanvas" width="1000" height="500"></canvas>
+	<script>
+		var canvas = document.getElementById('myCanvas');
+		var context = canvas.getContext('2d');
+
+		var mouse_pos = {x: -100, y: -100};
+
+		var paddle_height = 80;
+		var paddle_width = 120;
+
+		var bricks_width = canvas.width / 2;
+		var bricks_height = canvas.height / 2;
+
+		var bricks = [
+			[true, true, true, true],
+			[true, true, true, true],
+			[true, true, true, true],
+			[true, true, true, true]
+		];
+		
+		var brick_width = bricks_width / bricks.length;
+		var brick_height = bricks_height / bricks[0].length;
+
+		var Point3D = function(x, y, z) {
+			this.x = x;
+			this.y = y;
+			this.z = z;
+		}
+
+		function drawPaddle() {
+			context.rect(
+				mouse_pos.x - paddle_width / 2, 
+				mouse_pos.y - paddle_height / 2, 
+				paddle_width,
+				paddle_height
+			);
+		}
+
+		function drawBricks() {
+			context.strokeRect(
+				canvas.width / 4,
+				canvas.height / 4,
+				bricks_width,
+				bricks_height
+			);
+			context.fillStyle = '#218400';
+			context.lineWidth = 3;
+			for (var i = 0; i < bricks.length; i++) {
+				for (var j = 0; j < bricks[0].length; j++) {
+					if (bricks[i][j]) {
+						context.rect(
+							canvas.width / 4 + i * brick_width, 
+							canvas.height / 4 + j * brick_height, 
+							brick_width,
+							brick_height
+						);
+						context.fill();
+					}
+				}
+			}
+		}
+
+		function drawPerspectiveLines() {
+			topleft = {
+				x: canvas.width / 4,
+				y: canvas.height / 4
+			}
+
+			context.moveTo(0, 0);
+			context.lineTo(topleft.x, topleft.y);
+
+			context.moveTo(canvas.width, 0);
+			context.lineTo(topleft.x + bricks_width, topleft.y);
+
+			context.moveTo(0, canvas.height);
+			context.lineTo(topleft.x, topleft.y + bricks_height);
+
+			context.moveTo(canvas.width, canvas.height);
+			context.lineTo(
+				topleft.x + bricks_width, 
+				topleft.y + bricks_height
+			);
+		}
+
+		function redraw() {
+			console.log('redrawing');
+			context.clearRect(0, 0, canvas.width, canvas.height);
+			context.beginPath();
+			context.strokeStyle = 'black';
+			drawBricks();
+			drawPerspectiveLines();
+			drawPaddle();
+			context.stroke();
+			window.webkitRequestAnimationFrame(redraw);
+		}
+
+		// function definitions above, logic below
+		canvas.addEventListener(
+			'mousemove', 
+			function(evt) {
+				var rect = canvas.getBoundingClientRect();
+				mouse_pos =  {
+					x: evt.clientX - rect.left,
+					y: evt.clientY - rect.top
+				};
+      }, 
+			false
+		);
+
+		redraw();
+
+	</script>
+</div>
