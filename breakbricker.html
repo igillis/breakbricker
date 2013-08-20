@@ -12,13 +12,71 @@
 <div>
 	<canvas id="myCanvas" width="1000" height="500"></canvas>
 	<script>
+		var focal_length = 800;
+
+		var has_served = false;
+
+		function Ball(x, y, z) {
+			this.radius = 20;
+			this.x = x;
+			this.y = y;
+			this.z = z;
+			this.mx = 0;
+			this.my = 0;
+			this.mz = 0;
+
+			this.setCenter = function(x, y, z) {
+				this.x = x;
+				this.y = y;
+				this.z = z;
+			}
+
+			this.setMotionVector = function(x, y, z) {
+				this.mx = x;
+				this.my = y;
+				this.mz = z;
+			}
+
+			this.updatePos = function() {
+				if (this.x - this.radius <= 0 || 
+						this.x + this.radius >= canvas.width) {
+					this.mx *= -1;
+				}
+				if (this.y - this.radius <= 0 || 
+						this.y + this.radius >= canvas.height) {
+					this.my *= -1;
+				}
+				this.x += this.mx;
+				this.y += this.my;
+				this.z += this.mz;
+			}
+
+			this.render = function() {
+				var foc_z = focal_length + this.z;
+				var e_x = canvas.width / 2;
+				var e_y = canvas.height / 2;
+
+				context.beginPath();
+				context.arc(
+					(focal_length * (this.x - e_x) / foc_z) + e_x,
+					(focal_length * (this.y - e_y) / foc_z) + e_y,
+					this.radius * focal_length / (focal_length + this.z), 
+					0, 
+					2 * Math.PI,
+					false
+				);
+				context.stroke();
+			}
+		}
 		var canvas = document.getElementById('myCanvas');
 		var context = canvas.getContext('2d');
 
-		var mouse_pos = {x: -100, y: -100};
+		var paddle_pos = {x: -100, y: -100};
 
 		var paddle_height = 80;
 		var paddle_width = 120;
+
+		var ball = new Ball(100, 100, 50);
 
 		var bricks_width = canvas.width / 2;
 		var bricks_height = canvas.height / 2;
@@ -29,26 +87,25 @@
 			[true, true, true, true],
 			[true, true, true, true]
 		];
+		var bricks_z = 800;
+		var num_bricks_remaining = bricks.length * bricks[0].length;
 		
 		var brick_width = bricks_width / bricks.length;
 		var brick_height = bricks_height / bricks[0].length;
 
-		var Point3D = function(x, y, z) {
-			this.x = x;
-			this.y = y;
-			this.z = z;
-		}
-
 		function drawPaddle() {
+			context.beginPath();
 			context.rect(
-				mouse_pos.x - paddle_width / 2, 
-				mouse_pos.y - paddle_height / 2, 
+				paddle_pos.x - paddle_width / 2, 
+				paddle_pos.y - paddle_height / 2, 
 				paddle_width,
 				paddle_height
 			);
+			context.stroke();
 		}
 
 		function drawBricks() {
+			context.beginPath();
 			context.strokeRect(
 				canvas.width / 4,
 				canvas.height / 4,
@@ -70,6 +127,7 @@
 					}
 				}
 			}
+			context.stroke();
 		}
 
 		function drawPerspectiveLines() {
@@ -77,7 +135,7 @@
 				x: canvas.width / 4,
 				y: canvas.height / 4
 			}
-
+			context.beginPath();
 			context.moveTo(0, 0);
 			context.lineTo(topleft.x, topleft.y);
 
@@ -92,18 +150,72 @@
 				topleft.x + bricks_width, 
 				topleft.y + bricks_height
 			);
+			context.stroke();
+		}
+
+		function paddleBallCollision() {
+			var ret_val = 
+				ball.x >= paddle_pos.x - paddle_width / 2 &&
+				ball.x <= paddle_pos.x + paddle_width / 2 &&
+				ball.y >= paddle_pos.y - paddle_height / 2 &&
+				ball.y <= paddle_pos.y + paddle_height / 2;
+			return ret_val;
+		}
+
+		function flashPaddle(fill_color, flash_length) {
+			context.beginPath();
+			context.fillRect(
+				paddle_pos.x - paddle_width / 2,
+				paddle_pos.y - paddle_height / 2,
+				paddle_width,
+				paddle_height,
+				fill_color
+			);
+		}
+
+		function drawBall() {
+			var should_continue = true;
+			if (!has_served) {
+				ball.setCenter(paddle_pos.x, paddle_pos.y, 0);
+			}
+			ball.render();
+			if (ball.z < 0) {
+				if (paddleBallCollision()) {
+					ball.mz *= -1;
+					flashPaddle('green', 10);
+				} else {
+					console.log('lose a life');
+					should_continue =  false;
+				}
+			}
+
+			if (ball.z >= bricks_z) {
+				var i = Math.floor(ball.x / (canvas.width / bricks.length));
+				var j = Math.floor(ball.y / (canvas.height / bricks[0].length));
+				if (bricks[i][j]) {
+					bricks[i][j] = false;
+					if (--num_bricks_remaining == 0) {
+						console.log('You win!!');
+						return false;
+					}
+				}
+				ball.mz *= -1;
+			}
+			ball.updatePos();
+			return should_continue;
 		}
 
 		function redraw() {
-			console.log('redrawing');
 			context.clearRect(0, 0, canvas.width, canvas.height);
-			context.beginPath();
 			context.strokeStyle = 'black';
-			drawBricks();
 			drawPerspectiveLines();
+			drawBricks();
+			var cont = drawBall();
 			drawPaddle();
 			context.stroke();
-			window.webkitRequestAnimationFrame(redraw);
+			if (cont) {
+				window.webkitRequestAnimationFrame(redraw);
+			}
 		}
 
 		// function definitions above, logic below
@@ -111,7 +223,7 @@
 			'mousemove', 
 			function(evt) {
 				var rect = canvas.getBoundingClientRect();
-				mouse_pos =  {
+				paddle_pos =  {
 					x: evt.clientX - rect.left,
 					y: evt.clientY - rect.top
 				};
@@ -119,6 +231,19 @@
 			false
 		);
 
+		canvas.addEventListener(
+			'mouseup',
+			function(evt) {
+				if (has_served) {
+					return;
+				}
+				has_served = true;
+				var mx = Math.random() * 10 - 5;
+				var my = Math.random() * 10 - 5;
+				ball.setMotionVector(mx, my, 10);
+			},
+			false
+		);
 		redraw();
 
 	</script>
