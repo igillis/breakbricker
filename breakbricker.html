@@ -6,11 +6,14 @@
 			cursor: none;
 		}
 	</style>
+  <script src="underscore-min.js" type="text/javascript"></script>
+  <script src="vectors.js" type="text/javascript"></script>
 </head>
 <div>
 	<canvas id="myCanvas" width="1000" height="500"></canvas>
 	<div id="fpsDisplay" />
 	<script>
+
 		var focal_length = 800;
 
 		var has_served = false;
@@ -55,6 +58,21 @@
 				var e_x = canvas.width / 2;
 				var e_y = canvas.height / 2;
 
+        // color goes from white to red based on how close it is to the paddle
+        // plane
+        var color_white = [1, 1, 1];
+        var color_red = [1, 0, 0];
+        var color_fact = (1 - this.z / 400).clamp(0, 1);
+        var ball_color = vecAdd(
+          vecMul(color_white, 1 - color_fact),
+          vecMul(color_red, color_fact)
+        );
+        var color_string =
+          _.map(vecMul(ball_color, 255), Math.floor)
+          .join(', ');
+        color_string = 'rgb(' + color_string + ')';
+
+        context.fillStyle = color_string;
 				context.beginPath();
 				context.arc(
 					(focal_length * (this.x - e_x) / foc_z) + e_x,
@@ -65,6 +83,7 @@
 					false
 				);
 				context.stroke();
+        context.fill();
 			}
 		}
 		var canvas = document.getElementById('myCanvas');
@@ -152,13 +171,37 @@
 		}
 
 		function paddleBallCollision() {
-			var ret_val = 
-				ball.x >= paddle_pos.x - paddle_width / 2 &&
-				ball.x <= paddle_pos.x + paddle_width / 2 &&
-				ball.y >= paddle_pos.y - paddle_height / 2 &&
-				ball.y <= paddle_pos.y + paddle_height / 2;
-			return ret_val;
-		}
+      var paddle_center_vec = [paddle_pos.x, paddle_pos.y];
+      var paddle_extents = vecMul([paddle_width, paddle_height], 0.5);
+      // Check center of ball in padde
+			var hit = 
+				ball.x >= paddle_pos.x - paddle_extents[0] &&
+				ball.x <= paddle_pos.x + paddle_extents[0] &&
+				ball.y >= paddle_pos.y - paddle_extents[1] &&
+				ball.y <= paddle_pos.y + paddle_extents[1];
+      if (hit) {
+        return true;
+      }
+
+      // Check each edge intersecting with the ball
+      var ball_center = [ball.x, ball.y];
+      var edges = [
+        vecAdd(paddle_center_vec, paddle_extents),
+        vecAdd(paddle_center_vec, [paddle_extents[0], -paddle_extents[1]]),
+        vecAdd(paddle_center_vec, [-paddle_extents[0], -paddle_extents[1]]),
+        vecAdd(paddle_center_vec, [-paddle_extents[0], paddle_extents[1]])
+      ];
+      for (var i = 0; i < edges.length; i++) {
+        var v0 = edges[i];
+        var v1 = edges[(i + 1) % edges.length];
+        var intersection =
+          circleSegmentIntersection(ball_center, ball.radius, v0, v1);
+        if (intersection) {
+          return true;
+        }
+      }
+      return false;
+    }
 
 		function flashPaddle(fill_color, flash_length) {
 			context.beginPath();
@@ -204,7 +247,7 @@
 		}
 
 		var fps_display = document.getElementById('fpsDisplay');
-		var num_frames = 0;
+		var num_frames = 1;
 		function updateFPSDisplay() {
 			fps_display.innerHTML = num_frames;	
 			num_frames = 0;
